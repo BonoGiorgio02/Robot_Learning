@@ -55,7 +55,10 @@ v_grid = np.linspace(v_min, v_max, discr)
 th_grid = np.linspace(th_min, th_max, discr)
 av_grid = np.linspace(av_min, av_max, discr)
 
-# Initialize Q values
+# Initialize Q values all zeros (Task 3.3)
+# q_grid = np.zeros((discr, discr, discr, discr, num_of_actions))
+
+# Initialize Q values all 50 (Task 3.3)
 q_grid = np.full((discr, discr, discr, discr, num_of_actions), 50)
 
 if MODE == 'TEST':
@@ -137,17 +140,19 @@ def plot(ep_lengths, epl_avg):
     plt.plot(epl_avg, linewidth=2, label="Smoothed return (last 500)")
     plt.xlabel("Episode")
     plt.ylabel("Return")
-    plt.title("Q-learning Performance on CartPole - 50_greedy")
+    plt.title("Q-learning Performance on CartPole - const eps greedy")
     plt.grid(True)
     plt.legend()
-    plt.savefig("plots/50_greedy.png")
+    plt.savefig("plots/q_eps_glie_50.png")
     plt.close()
 
+# Constant epsilon (Task 3.1)
+epsilon = constant_eps
 
 # Training loop
 ep_lengths, epl_avg = [], []
 for ep in range(episodes + test_episodes):
-    test = ep > episodes
+    test = ep >= episodes
 
     if MODE == 'TEST':
         test = True
@@ -156,8 +161,10 @@ for ep in range(episodes + test_episodes):
     done = False
     steps = 0
 
+    # 
+
     # GLIE schedule (Task 3.1)
-    epsilon = 0 #constant_eps, 0, (b/ (b + ep))
+    epsilon = b/ (b + ep)
 
     if test:
         epsilon = 0
@@ -175,8 +182,9 @@ for ep in range(episodes + test_episodes):
         state = new_state
         steps += 1
 
-    ep_lengths.append(steps)
-    epl_avg.append(np.mean(ep_lengths[max(0, ep - 500):]))
+    if not test:
+        ep_lengths.append(steps)
+        epl_avg.append(np.mean(ep_lengths[max(0, ep - 500):]))
 
     if ep % 200 == 0:
         print("Episode {}, average timesteps: {:.2f}".format(ep, np.mean(ep_lengths[max(0, ep-200):])))
@@ -186,20 +194,21 @@ for ep in range(episodes + test_episodes):
 if MODE == 'TEST':
     sys.exit()
 
+# Task 3.2
 # Compute value function from trained Q-values 
-# v_grid_values = np.max(q_grid, axis=-1)  # max over actions
-# v_avg = np.mean(v_grid_values, axis=(1, 2))  # average over x and theta
+v_grid_values = np.max(q_grid, axis=-1)  # max over actions
+v_avg = np.mean(v_grid_values, axis=(1, 2))  # average over x and theta
 
 # Plot heatmap 
-# plt.figure(figsize=(8, 6))
-# sns.heatmap(v_avg, xticklabels=np.round(av_grid, 2), yticklabels=np.round(v_grid, 2), cmap='viridis')
-# plt.xlabel('Pole Angular Velocity (theta_dot)')
-# plt.ylabel('Cart Velocity (x_dot)')
-# plt.title(f'Value Function Heatmap (averaged over x_dot and theta)')
-# plt.savefig("./plots/value_function_heatmap.png")
-# plt.show()
+plt.figure(figsize=(8, 6))
+sns.heatmap(v_avg, xticklabels=np.round(av_grid, 2), yticklabels=np.round(v_grid, 2), cmap='viridis')
+plt.xlabel('Pole Angular Velocity (theta_dot)')
+plt.ylabel('Cart Velocity (x_dot)')
+plt.title(f'Value Function Heatmap (averaged over x_dot and theta)')
+plt.savefig("./plots/value_function_heatmap_glie_50.png")
+plt.show()
 
 # Save the Q-value array
-np.save("q_val/50_greedy.npy", q_grid)
+np.save("q_val/q_eps_glie_50.npy", q_grid)
 
 plot(ep_lengths, epl_avg)

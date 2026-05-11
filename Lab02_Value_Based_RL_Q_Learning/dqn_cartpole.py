@@ -19,6 +19,7 @@ torch.manual_seed(SEED)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 env = gym.make('CartPole-v1')
+
 state_dim = env.observation_space.shape[0]   # 4
 print(state_dim)
 print(env.observation_space.shape)
@@ -29,10 +30,10 @@ lr = 1e-3
 gamma = 0.98
 batch_size = 64
 buffer_size = 100000
-b = 100000
+b = 10000
 min_replay_size = 1000
-target_update_freq = 1000   # number of gradient steps between target updates
-max_episodes = 2000
+target_update_freq = 500   # number of gradient steps between target updates
+max_episodes = 20000
 max_steps = 500
 save_dir = "dqn_checkpoints"
 os.makedirs(save_dir, exist_ok=True)
@@ -127,19 +128,20 @@ class QNetwork(nn.Module):
         x = self.fc3(x)             
         return x
 
-
+# Trained net
 policy_net = QNetwork(state_dim, n_actions).to(device)
+# Copied stable net used to compute the target to have more stable training
 target_net = QNetwork(state_dim, n_actions).to(device)
 target_net.load_state_dict(policy_net.state_dict())
 target_net.eval()
 
-optimizer = optim.SGD(policy_net.parameters(), lr=lr)
+optimizer = optim.Adam(policy_net.parameters(), lr=lr)
 replay = Memory(buffer_size)
 
 
 def GLIE_eps(frame_idx):
     """
-    Compute epsilon value using linear decay schedule.
+    Compute epsilon value using hyperbolic decay schedule.
 
     Args:
         frame_idx (int): Total number of environment steps taken so far.
@@ -188,17 +190,19 @@ def train_step():
         return None
     s, a, r, s2, done = replay.sample(batch_size)
 
+    # Q values of the chosen actions
     q_values = policy_net(s).gather(1, a)                
 
     with torch.no_grad():
-        q_next = target_net(s2)                         
+        q_next = target_net(s2)
         q_next_max, _ = q_next.max(dim=1, keepdim=True) 
         target = r + gamma * (1.0 - done) * q_next_max  
 
-    loss = F.mse_loss(q_values, target)
+    loss = F.smooth_l1_loss(q_values, target)
 
     optimizer.zero_grad()
     loss.backward()
+    torch.nn.utils.clip_grad_norm_(policy_net.parameters(), 10.0)
     optimizer.step()
 
     grad_steps += 1
